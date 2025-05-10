@@ -394,3 +394,6 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 .idea
+
+# Config file (Environment Path)
+Directory.Path.props
