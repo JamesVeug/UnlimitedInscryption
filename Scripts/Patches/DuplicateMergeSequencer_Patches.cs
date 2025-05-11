@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using DiskCardGame;
 using HarmonyLib;
 using UnityEngine;
-using UnlimitedInscryption.Scripts.Sigils;
 using Object = UnityEngine.Object;
 
 namespace UnlimitedInscryption.Scripts.Patches
@@ -14,7 +13,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
         public static bool Prefix(DuplicateMergeSequencer __instance, ref IEnumerator __result)
         {
-	        if (!Plugin.Instance.DuplicateMergeOverrideEnabled)
+	        if (!Configs.DuplicateMergeOverrideEnabled)
 	        {
 		        return true;
 	        }
@@ -251,7 +250,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
 	    public static bool Prefix(CardMergeSequencer __instance, ref List<CardInfo> __result)
 	    {
-		    if (!Plugin.Instance.DuplicateMergeOverrideEnabled)
+		    if (!Configs.DuplicateMergeOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -272,11 +271,6 @@ namespace UnlimitedInscryption.Scripts.Patches
 		    __result = list;
 		    return false;
 	    }
-	    
-	    public static void Postfix(CardMergeSequencer __instance, ref List<CardInfo> __result)
-	    {
-		    __result.RemoveAll((a) => a.HasAbility(DeadAbility.ability));
-	    }
     }
     
     [HarmonyPatch(typeof(DuplicateMergeSequencer), "OnSlotSelected", new System.Type[] { typeof(MainInputInteractable) })]
@@ -284,7 +278,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
 	    public static bool Prefix(DuplicateMergeSequencer __instance, MainInputInteractable slot)
 	    {
-		    if (!Plugin.Instance.DuplicateMergeOverrideEnabled)
+		    if (!Configs.DuplicateMergeOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -301,7 +295,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
 	    public static bool Prefix(DuplicateMergeSequencer __instance)
 	    {
-		    if (!Plugin.Instance.DuplicateMergeOverrideEnabled)
+		    if (!Configs.DuplicateMergeOverrideEnabled)
 		    {
 			    return true;
 		    }

@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using APIPlugin;
 using DiskCardGame;
 using HarmonyLib;
+using InscryptionAPI.Card;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -14,7 +14,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 	{
 		public static void Postfix(BuildTotemSequencer __instance)
 		{
-			if (!Plugin.Instance.TotemOverrideEnabled)
+			if (!Configs.TotemOverrideEnabled)
 			{
 				return;
 			}
@@ -67,7 +67,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
         public static bool Prefix(BuildTotemSequencer __instance, BuildTotemNodeData nodeData, ref IEnumerator __result)
         {
-	        if (!Plugin.Instance.TotemOverrideEnabled)
+	        if (!Configs.TotemOverrideEnabled)
 	        {
 		        return true;
 	        }
@@ -228,7 +228,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
 	    public static bool Prefix(SelectItemsSequencer __instance, SelectableItemSlot selectedSlot)
 	    {
-		    if (!Plugin.Instance.TotemOverrideEnabled)
+		    if (!Configs.TotemOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -257,7 +257,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
 	    public static bool Prefix(BuildTotemSequencer __instance, BuildTotemNodeData nodeData, int randomSeed, ref List<ItemData> __result)
 	    {
-		    if (!Plugin.Instance.TotemOverrideEnabled)
+		    if (!Configs.TotemOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -299,7 +299,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 			//
 
 			List<Ability> abilities = new List<Ability>();
-			if (Plugin.Instance.TotemIncludeUnlearnedAbilities)
+			if (Configs.TotemIncludeUnlearnedAbilities)
 			{
 				// Vanilla
 				//Plugin.Log.LogInfo("[BuildTotemSequencer_GenerateTotemChoices] Adding Vanilla abilities");
@@ -315,12 +315,12 @@ namespace UnlimitedInscryption.Scripts.Patches
 
 				// Custom Abilities
 				//Plugin.Log.LogInfo("[BuildTotemSequencer_GenerateTotemChoices] Adding Custom abilities");
-				foreach (NewAbility newAbility in NewAbility.abilities)
+				foreach (AbilityManager.FullAbility newAbility in AbilityManager.NewAbilities)
 				{
-					if (!abilities.Contains(newAbility.ability))
+					if (!abilities.Contains(newAbility.Id))
 					{
 						//Plugin.Log.LogInfo("[BuildTotemSequencer_GenerateTotemChoices] Added Custom " + newAbility.id);
-						abilities.Add(newAbility.ability);
+						abilities.Add(newAbility.Id);
 					}
 				}
 			}
@@ -340,13 +340,13 @@ namespace UnlimitedInscryption.Scripts.Patches
 					return true;
 				}
 				
-				if (!Plugin.Instance.TotemIncludeOverpoweredAbilities)
+				if (!Configs.TotemIncludeOverpoweredAbilities)
 				{
 					if (abilityInfo.powerLevel > 7 || abilityInfo.powerLevel < 0)
 						return true;
 				}
 
-				if (!Plugin.Instance.TotemIncludeNonAct1Abilities)
+				if (!Configs.TotemIncludeNonAct1Abilities)
 				{
 					if (!abilityInfo.metaCategories.Contains(AbilityMetaCategory.Part1Modular))
 						return true;

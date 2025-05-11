@@ -1,24 +1,32 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using DiskCardGame;
 using HarmonyLib;
 using UnityEngine;
-using UnlimitedInscryption.Scripts.Sigils;
 using Object = UnityEngine.Object;
 
 namespace UnlimitedInscryption.Scripts.Patches
 {
-    [HarmonyPatch(typeof (CardMergeSequencer), "MergeSequence", new System.Type[] {typeof(CardMergeNodeData)})]
+    [HarmonyPatch]
     public class CardMergeSequencer_MergeSequence
     {
-        public static bool Prefix(CardMergeNodeData nodeData, CardMergeSequencer __instance, ref IEnumerator __result)
+	    private static MethodBase TargetMethod()
+	    {
+		    MethodBase baseMethod = AccessTools.Method(typeof(CardMergeSequencer), nameof(CardMergeSequencer.MergeSequence));
+		    return AccessTools.EnumeratorMoveNext(baseMethod);
+	    }
+	    
+	    [HarmonyPrefix]
+        public static bool Prefix(CardMergeNodeData nodeData)
         {
-	        if (!Plugin.Instance.CardMergeOverrideEnabled)
+	        if (!Configs.CardMergeOverrideEnabled)
 	        {
 		        return true;
 	        }
 
+	        var __instance = GameObject.FindObjectOfType<CardMergeSequencer>();
             Transform confirmStoneButton = __instance.transform.Find("CustomCancelButton");
             if (confirmStoneButton == null)
             {
@@ -39,7 +47,7 @@ namespace UnlimitedInscryption.Scripts.Patches
             }
 
             ConfirmStoneButton cancelButton = confirmStoneButton.GetComponentInChildren<ConfirmStoneButton>(true);
-            __result = Sequence(nodeData, __instance, cancelButton);
+            __instance.StartCoroutine(Sequence(nodeData, __instance, cancelButton));
             return false;
         }
 
@@ -213,7 +221,7 @@ namespace UnlimitedInscryption.Scripts.Patches
         private static bool AllowMultipleSacrificesOnOneCard()
         {
 	        // Player has turned this on
-	        if (Plugin.Instance.CardMergeAllowMultipleSigilTransfers)
+	        if (Configs.CardMergeAllowMultipleSigilTransfers)
 	        {
 		        return true;
 	        }
@@ -233,7 +241,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
 	    public static bool Prefix(CardMergeSequencer __instance, MainInputInteractable slot)
 	    {
-		    if (!Plugin.Instance.CardMergeOverrideEnabled)
+		    if (!Configs.CardMergeOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -251,7 +259,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
 	    public static bool Prefix(CardMergeSequencer __instance, SelectCardFromDeckSlot slot)
 	    {
-		    if (!Plugin.Instance.CardMergeOverrideEnabled)
+		    if (!Configs.CardMergeOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -270,7 +278,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 	    [HarmonyPrefix]
 	    public static bool Prefix(ref List<CardInfo> __result, CardMergeSequencer __instance, CardInfo host = null)
 	    {
-		    if (!Plugin.Instance.CardMergeOverrideEnabled)
+		    if (!Configs.CardMergeOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -280,7 +288,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 			    return false;
 		    }
 		    
-		    if (!Plugin.Instance.CardMergeAllowMultipleSigilTransfers)
+		    if (!Configs.CardMergeAllowMultipleSigilTransfers)
 		    {
 			    return true;
 		    }
@@ -295,15 +303,6 @@ namespace UnlimitedInscryption.Scripts.Patches
 		    __result = list;
 		    return false;
 	    }
-	    
-	    [HarmonyPrefix]
-	    public static void Postfix(ref List<CardInfo> __result, CardMergeSequencer __instance, CardInfo host = null)
-	    {
-		    if (__result != null)
-		    {
-			    __result.RemoveAll((a) => a == null || a.HasAbility(DeadAbility.ability));
-		    }
-	    }
     }
     
     [HarmonyPatch(typeof(CardMergeSequencer), "GetValidCardsForHost")]
@@ -312,7 +311,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 	    [HarmonyPrefix]
 	    public static bool Prefix(ref List<CardInfo> __result, CardMergeSequencer __instance, CardInfo sacrifice = null)
 	    {
-		    if (!Plugin.Instance.CardMergeOverrideEnabled)
+		    if (!Configs.CardMergeOverrideEnabled)
 		    {
 			    return true;
 		    }
@@ -322,7 +321,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 			    return false;
 		    }
 		    
-		    if (!Plugin.Instance.CardMergeAllowMultipleSigilTransfers)
+		    if (!Configs.CardMergeAllowMultipleSigilTransfers)
 		    {
 			    return true;
 		    }
@@ -335,15 +334,6 @@ namespace UnlimitedInscryption.Scripts.Patches
 		    }
 		    __result = list;
 		    return false;
-	    }
-	    
-	    [HarmonyPrefix]
-	    public static void Postfix(ref List<CardInfo> __result, CardMergeSequencer __instance, CardInfo sacrifice = null)
-	    {
-		    if (__result != null)
-		    {
-			    __result.RemoveAll((a) => a == null || a.HasAbility(DeadAbility.ability));
-		    }
 	    }
     }
 }

@@ -3,17 +3,25 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Do everything as much as you want</Description>
+    <AssemblyName>UnlimitedInscryption</AssemblyName>
     <Version>1.0.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>7.3</LangVersion>
     <BepInExPath>$([System.Environment]::GetFolderPath(SpecialFolder.ApplicationData))/Thunderstore Mod Manager/DataFolder/Inscryption/profiles/Default/BepInEx</BepInExPath>
   </PropertyGroup>
 
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DefineConstants>TRACE;UNITY_ASSERTIONS</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
-    <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
-    <PackageReference Include="BepInEx.Core" Version="5.*" />
-    <PackageReference Include="BepInEx.PluginInfoProps" Version="1.*" />
-    <PackageReference Include="UnityEngine.Modules" Version="2019.4.24" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Analyzers" Version="1.0.8">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="BepInEx.Core" Version="5.4.19" />
+    <PackageReference Include="HarmonyX" Version="2.9.0" />
+    <PackageReference Include="UnityEngine.Modules" Version="2019.4.24" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,7 +34,23 @@
     <Reference Include="$(InscryptionPath)\Inscryption_Data\Managed\Sirenix.Serialization.dll" Publicize="true" private="false"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Artwork\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
   </ItemGroup>
+
+  <Target Name="Deploy" AfterTargets="Build">
+    <ItemGroup>
+      <Assembly Include="$(OutputPath)\UnlimitedInscryption.dll" />
+      <Artwork Include="$(OutputPath)\Artwork\*.*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(Assembly)" DestinationFolder="$(BepInExPath)\plugins\JamesGames-UnlimitedInscryption\" />
+    <Copy SourceFiles="@(Artwork)" DestinationFolder="$(BepInExPath)\plugins\JamesGames-UnlimitedInscryption\Artwork" />
+  </Target>
 </Project>

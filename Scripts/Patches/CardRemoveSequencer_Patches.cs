@@ -13,7 +13,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 	{
 		public static bool Prefix(CardRemoveSequencer __instance, MainInputInteractable slot)
 		{
-			if (!Plugin.Instance.CardRemoveOverrideEnabled)
+			if (!Configs.CardRemoveOverrideEnabled)
 			{
 				return true;
 			}
@@ -30,7 +30,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 	{
 		public static bool Prefix(CardRemoveSequencer __instance)
 		{
-			if (!Plugin.Instance.CardRemoveOverrideEnabled)
+			if (!Configs.CardRemoveOverrideEnabled)
 			{
 				return true;
 			}
@@ -47,7 +47,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     {
         public static bool Prefix(CardRemoveSequencer __instance, ref IEnumerator __result)
         {
-	        if (!Plugin.Instance.CardRemoveOverrideEnabled)
+	        if (!Configs.CardRemoveOverrideEnabled)
 	        {
 		        return true;
 	        }
