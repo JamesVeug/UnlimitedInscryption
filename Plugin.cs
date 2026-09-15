@@ -1,5 +1,3 @@
-using System.IO;
-using System.Reflection;
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -12,7 +10,7 @@ namespace UnlimitedInscryption
     {
 	    public const string PluginGuid = "jamesgames.inscryption.unlimitedinscryption";
 	    public const string PluginName = "Unlimited Inscryption";
-	    public const string PluginVersion = "0.4.1.0";
+	    public const string PluginVersion = "1.0.0";
 
         public static string PluginDirectory;
         public static ManualLogSource Log;
