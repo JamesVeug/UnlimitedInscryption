@@ -17,15 +17,18 @@ Adds a button to the below map nodes to continuously perform the it's feature.
   - Destroy as many cards as you want to gain multiple Boons 
 - Wood Carver
   - Choose up to 21 random totem pieces. Builds 1 totem.
+- Goobert
+  - After each painting, use the left confirmation button to paint another card or the right X button to leave.
+  - Each repeat runs the standard card selection and painting sequence. Toggle with `Goobert > Enabled`.
 - Flame
-  - Infinite flames with a 22.5% (unchanged) chance to destroy the card (except first). Works with `FirePitAlwaysAbleToUpgrade by JulianMods`.
-  - 10% chance for the flame to extinguish and burn your card when the survivors are killed 
+  - Repeat buffs until pressing the exit button, including on early runs and with only one eligible card.
+  - While survivors are alive, every attempt, including the first, has the configured destruction chance (22.5% by default), in both Story and Ascension. Buffs are safe once the survivors are dead, including after poisoning them during the current visit.
+  - Destroyed cards award a Piggy Bank bones item when consumable inventory has room. Choose another card to continue, or exit.
 
 ## Config:
 - Toggles for each map node to turn its new behaviour on/off
 - Flame
   - Change chance on destroying a card
-  - Bypass 4 past run limit in order to get muliple buffs 
   - Change chance for fire to Extinguish and burn your card
 - Wood Carver
   - Show unlearned abilities

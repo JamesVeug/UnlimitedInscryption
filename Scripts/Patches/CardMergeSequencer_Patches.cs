@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using DiskCardGame;
 using HarmonyLib;
 using UnityEngine;
@@ -9,24 +8,17 @@ using Object = UnityEngine.Object;
 
 namespace UnlimitedInscryption.Scripts.Patches
 {
-    [HarmonyPatch]
+    [HarmonyPatch(typeof(CardMergeSequencer), nameof(CardMergeSequencer.MergeSequence), new Type[] { typeof(CardMergeNodeData) })]
     public class CardMergeSequencer_MergeSequence
     {
-	    private static MethodBase TargetMethod()
-	    {
-		    MethodBase baseMethod = AccessTools.Method(typeof(CardMergeSequencer), nameof(CardMergeSequencer.MergeSequence));
-		    return AccessTools.EnumeratorMoveNext(baseMethod);
-	    }
-	    
 	    [HarmonyPrefix]
-        public static bool Prefix(CardMergeNodeData nodeData)
+        public static bool Prefix(CardMergeSequencer __instance, CardMergeNodeData nodeData, ref IEnumerator __result)
         {
 	        if (!Configs.CardMergeOverrideEnabled)
 	        {
 		        return true;
 	        }
 
-	        var __instance = GameObject.FindObjectOfType<CardMergeSequencer>();
             Transform confirmStoneButton = __instance.transform.Find("CustomCancelButton");
             if (confirmStoneButton == null)
             {
@@ -47,7 +39,7 @@ namespace UnlimitedInscryption.Scripts.Patches
             }
 
             ConfirmStoneButton cancelButton = confirmStoneButton.GetComponentInChildren<ConfirmStoneButton>(true);
-            __instance.StartCoroutine(Sequence(nodeData, __instance, cancelButton));
+            __result = Sequence(nodeData, __instance, cancelButton);
             return false;
         }
 

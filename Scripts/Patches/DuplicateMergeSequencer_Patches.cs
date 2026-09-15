@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection.Emit;
 using DiskCardGame;
 using HarmonyLib;
 using UnityEngine;
@@ -8,6 +9,42 @@ using Object = UnityEngine.Object;
 
 namespace UnlimitedInscryption.Scripts.Patches
 {
+    [HarmonyPatch(typeof(SpecialNodeHandler), nameof(SpecialNodeHandler.StartSpecialNodeSequence))]
+    public class DuplicateMergeSequencer_StartSpecialNodeSequence
+    {
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var original = AccessTools.Method(typeof(DuplicateMergeSequencer), nameof(DuplicateMergeSequencer.MergeSequence));
+            var replacement = AccessTools.Method(typeof(DuplicateMergeSequencer_StartSpecialNodeSequence), nameof(CreateSequence));
+            int replaced = 0;
+            foreach (CodeInstruction instruction in instructions)
+            {
+                if (instruction.Calls(original))
+                {
+                    // Keep the dispatcher from inlining the original coroutine factory and bypassing setup.
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = replacement;
+                    replaced++;
+                }
+                yield return instruction;
+            }
+            if (replaced != 1)
+            {
+                throw new InvalidOperationException("Expected one duplicate-merge sequence call in StartSpecialNodeSequence, found " + replaced);
+            }
+        }
+
+        public static IEnumerator CreateSequence(DuplicateMergeSequencer sequencer)
+        {
+            IEnumerator result = null;
+            if (DuplicateMergeSequencer_MergeSequence.Prefix(sequencer, ref result))
+            {
+                return sequencer.MergeSequence();
+            }
+            return result;
+        }
+    }
+
     [HarmonyPatch(typeof (DuplicateMergeSequencer), "MergeSequence", new System.Type[] {})]
     public class DuplicateMergeSequencer_MergeSequence
     {
@@ -44,6 +81,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 
         private static IEnumerator Sequence(DuplicateMergeSequencer __instance, ConfirmStoneButton cancelButton)
         {
+            Plugin.Log.LogInfo("[DuplicateMerge] Starting repeatable merges with exit button.");
 	        yield return Intro(__instance);
 
 	        if (__instance.GetValidDuplicateCards().Count == 0)
@@ -248,7 +286,7 @@ namespace UnlimitedInscryption.Scripts.Patches
     [HarmonyPatch(typeof(DuplicateMergeSequencer), "GetValidDuplicateCards", new System.Type[] { })]
     public class DuplicateMergeSequencer_GetValidDuplicateCards
     {
-	    public static bool Prefix(CardMergeSequencer __instance, ref List<CardInfo> __result)
+	    public static bool Prefix(DuplicateMergeSequencer __instance, ref List<CardInfo> __result)
 	    {
 		    if (!Configs.DuplicateMergeOverrideEnabled)
 		    {
@@ -284,8 +322,15 @@ namespace UnlimitedInscryption.Scripts.Patches
 		    }
 
 		    Transform confirmStoneButton = __instance.transform.Find("CustomCancelButton");
+		    if (confirmStoneButton == null)
+		    {
+			    return true;
+		    }
 		    ConfirmStoneButton cancelButton = confirmStoneButton.GetComponentInChildren<ConfirmStoneButton>(true);
-		    cancelButton.Exit();
+		    if (cancelButton != null)
+		    {
+			    cancelButton.Exit();
+		    }
 		    return true;
 	    }
     }
@@ -301,8 +346,15 @@ namespace UnlimitedInscryption.Scripts.Patches
 		    }
 
 		    Transform confirmStoneButton = __instance.transform.Find("CustomCancelButton");
+		    if (confirmStoneButton == null)
+		    {
+			    return true;
+		    }
 		    ConfirmStoneButton cancelButton = confirmStoneButton.GetComponentInChildren<ConfirmStoneButton>(true);
-		    cancelButton.Enter();
+		    if (cancelButton != null)
+		    {
+			    cancelButton.Enter();
+		    }
 		    return true;
 	    }
     }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Reflection.Emit;
 using DiskCardGame;
 using HarmonyLib;
 using UnityEngine;
@@ -8,18 +9,48 @@ using Object = UnityEngine.Object;
 
 namespace UnlimitedInscryption.Scripts.Patches
 {
-	[HarmonyPatch]
+    [HarmonyPatch(typeof(SpecialNodeHandler), nameof(SpecialNodeHandler.StartSpecialNodeSequence))]
+    public class CardStatBoostSequencer_StartSpecialNodeSequence
+    {
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var original = AccessTools.Method(typeof(CardStatBoostSequencer), nameof(CardStatBoostSequencer.StatBoostSequence));
+            var replacement = AccessTools.Method(typeof(CardStatBoostSequencer_StartSpecialNodeSequence), nameof(CreateSequence));
+            int replaced = 0;
+            foreach (CodeInstruction instruction in instructions)
+            {
+                if (instruction.Calls(original))
+                {
+                    // Replace the call before Mono can inline the coroutine factory into the dispatcher.
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = replacement;
+                    replaced++;
+                }
+                yield return instruction;
+            }
+            if (replaced != 1)
+            {
+                throw new InvalidOperationException("Expected one campfire sequence call in StartSpecialNodeSequence, found " + replaced);
+            }
+        }
+
+        public static IEnumerator CreateSequence(CardStatBoostSequencer sequencer)
+        {
+            IEnumerator result = null;
+            if (CardStatBoostSequencer_RemoveSequence.CardStatBoostSequencer_StatBoostSequence(sequencer, ref result))
+            {
+                return sequencer.StatBoostSequence();
+            }
+            return result;
+        }
+    }
+
+	[HarmonyPatch(typeof(CardStatBoostSequencer), nameof(CardStatBoostSequencer.StatBoostSequence), new Type[] { })]
     public class CardStatBoostSequencer_RemoveSequence
     {
 	    internal static bool m_IsCancelButtonShowing = false;
-	    private static MethodBase TargetMethod()
-	    {
-		    MethodBase baseMethod = AccessTools.Method(typeof(CardStatBoostSequencer), nameof(CardStatBoostSequencer.StatBoostSequence));
-		    return AccessTools.EnumeratorMoveNext(baseMethod);
-	    }
-	    
 	    [HarmonyPrefix]
-        public static bool CardStatBoostSequencer_StatBoostSequence()
+        public static bool CardStatBoostSequencer_StatBoostSequence(CardStatBoostSequencer __instance, ref IEnumerator __result)
         {
 	        if (!Configs.FlameOverrideEnabled)
 	        {
@@ -27,7 +58,6 @@ namespace UnlimitedInscryption.Scripts.Patches
 		        return true;
 	        }
 
-	        var __instance = GameObject.FindObjectOfType<CardStatBoostSequencer>();
 	        Transform instanceTransform = __instance.transform;
 	        Transform confirmStoneButton = instanceTransform.Find("CustomCancelButton");
             if (confirmStoneButton == null)
@@ -35,6 +65,7 @@ namespace UnlimitedInscryption.Scripts.Patches
                 confirmStoneButton = __instance.transform.Find("ConfirmStoneButton");
                 GameObject clone = Object.Instantiate(confirmStoneButton.gameObject, confirmStoneButton.parent);
                 clone.name = "CustomCancelButton";
+                clone.transform.GetChild(0).gameObject.SetActive(true);
                 clone.transform.localPosition = new Vector3(2, 5, -0.5f);
 
                 // Assign new icon
@@ -53,14 +84,18 @@ namespace UnlimitedInscryption.Scripts.Patches
 
             ConfirmStoneButton cancelButton = confirmStoneButton.GetComponentInChildren<ConfirmStoneButton>(true);
             Debug.Assert(cancelButton, "cancelButton is null but the gameObject is not");
+            cancelButton.confirmView = View.Default;
+            confirmStoneButton.gameObject.SetActive(true);
+            cancelButton.transform.parent.parent.gameObject.SetActive(true);
 
             m_IsCancelButtonShowing = false;
-            __instance.StartCoroutine(Sequence(__instance, cancelButton));
+            __result = Sequence(__instance, cancelButton);
             return false;
         }
 
         private static IEnumerator Sequence(CardStatBoostSequencer __instance, ConfirmStoneButton cancelButton)
-        {	        
+        {
+            Plugin.Log.LogInfo("[Campfire] Starting unlimited buffs with exit button.");
 	        bool attackMod;
 	        bool killSurvivors = false;
 			if (__instance.GetValidCards(true).Count == 0)
@@ -141,167 +176,126 @@ namespace UnlimitedInscryption.Scripts.Patches
 					new string[1] { __instance.GetTranslatedStatText(attackMod) });
 			}
 
-			// cancelButton.Unpress();
-			yield return __instance.confirmStone.WaitUntilConfirmation();
-			// cancelButton.Disable();
-			//
-			// END OF INTRO
-			//
-			
-			//
-			// Buff card once and reloop
-			//
-			bool finishedBuffing = false;
-			int numBuffsGiven = 0;
-			while (!finishedBuffing)
-			{
-				Plugin.Log.LogError("Loop index: " + numBuffsGiven);
-				numBuffsGiven++;
-				__instance.selectionSlot.Disable();
-				Singleton<RuleBookController>.Instance.SetShown(false);
-				yield return new WaitForSeconds(0.25f);
-				AudioController.Instance.PlaySound3D("card_blessing", MixerGroup.TableObjectsSFX, __instance.selectionSlot.transform.position);
-				__instance.selectionSlot.Card.Anim.PlayTransformAnimation();
-				__instance.ApplyModToCard(__instance.selectionSlot.Card.Info, attackMod);
-				yield return new WaitForSeconds(0.15f);
-				__instance.selectionSlot.Card.SetInfo(__instance.selectionSlot.Card.Info);
-				__instance.selectionSlot.Card.SetInteractionEnabled(false);
-				// __instance.selectionSlot.Card.SetInteractionEnabled(true);
-				yield return new WaitForSeconds(0.75f);
-				if (SaveManager.SaveFile.pastRuns.Count >= 4 || SaveFile.IsAscension)
-				{
-					if (!RunState.Run.survivorsDead)
-					{
-						yield return Singleton<TextDisplayer>.Instance.PlayDialogueEvent("StatBoostPushLuck" + numBuffsGiven, TextDisplayer.MessageAdvanceMode.Input);
-						yield return new WaitForSeconds(0.1f);
-						switch (numBuffsGiven)
-						{
-						case 1:
-							Singleton<TextDisplayer>.Instance.ShowMessage("Push your luck? Or pull away?", Emotion.Neutral, TextDisplayer.LetterAnimation.WavyJitter);
-							break;
-						case 2:
-							Singleton<TextDisplayer>.Instance.ShowMessage("Push your luck further? Or run back?", Emotion.Neutral, TextDisplayer.LetterAnimation.WavyJitter);
-							break;
-						default:
-							Singleton<TextDisplayer>.Instance.ShowMessage("Recklessly continue?", Emotion.Neutral, TextDisplayer.LetterAnimation.WavyJitter);
-							break;
-						}
-					}
-					
-					RechooseCard:
-					__instance.selectionSlot.RevealAndEnable();
-					__instance.selectionSlot.Card.SetInteractionEnabled(true);
-					// bool cancelledByClickingCard = false;
-					// __instance.retrieveCardInteractable.gameObject.SetActive(true);
-					// __instance.retrieveCardInteractable.CursorSelectEnded = null;
-					// GenericMainInputInteractable genericMainInputInteractable = __instance.retrieveCardInteractable;
-					// genericMainInputInteractable.CursorSelectEnded = (Action<MainInputInteractable>)Delegate.Combine(genericMainInputInteractable.CursorSelectEnded, (Action<MainInputInteractable>)delegate
-					// {
-					// 	cancelledByClickingCard = true;
-					// });
-					if (__instance.selectionSlot.Card != null)
-					{
-						__instance.confirmStone.Unpress();
-					}
+            int attempt = 0;
+            int randomSeed = SaveManager.SaveFile.GetCurrentRandomSeed();
+            cancelButton.Enter();
+            while (true)
+            {
+                bool hasValidCards = __instance.GetValidCards(attackMod).Count > 0;
+                if (hasValidCards)
+                {
+                    __instance.selectionSlot.RevealAndEnable();
+                }
+                else
+                {
+                    __instance.selectionSlot.Disable();
+                }
 
+                if (__instance.selectionSlot.Card != null)
+                {
+                    __instance.selectionSlot.Card.SetInteractionEnabled(true);
+                    __instance.confirmStone.Unpress();
+                }
+                else
+                {
+                    __instance.confirmStone.Exit();
+                    __instance.confirmStone.Disable();
+                }
 
-					if (!m_IsCancelButtonShowing)
-					{
-						m_IsCancelButtonShowing = true;
-						cancelButton.Enter();
-					}
-					else
-					{
-						cancelButton.Unpress();
-					}
+                cancelButton.transform.parent.parent.gameObject.SetActive(true);
+                m_IsCancelButtonShowing = true;
+                cancelButton.Unpress();
+                Coroutine confirm = __instance.StartCoroutine(__instance.confirmStone.WaitUntilConfirmation());
+                Coroutine exit = __instance.StartCoroutine(cancelButton.WaitUntilConfirmation());
+                try
+                {
+                    yield return new WaitUntil(() => cancelButton.SelectionConfirmed ||
+                        (__instance.confirmStone.SelectionConfirmed && __instance.selectionSlot.Card != null));
+                }
+                finally
+                {
+                    __instance.StopCoroutine(confirm);
+                    __instance.StopCoroutine(exit);
+                    __instance.confirmStone.ClearDelegates();
+                    cancelButton.ClearDelegates();
+                }
 
-					__instance.StartCoroutine(__instance.confirmStone.WaitUntilConfirmation());
-					__instance.StartCoroutine(cancelButton.WaitUntilConfirmation());
-					yield return new WaitUntil(() =>
-					{
-						return __instance.confirmStone.SelectionConfirmed || cancelButton.SelectionConfirmed ||
-						       InputButtons.GetButton(Button.Cancel);
-					});
-					Singleton<TextDisplayer>.Instance.Clear();
-					__instance.retrieveCardInteractable.gameObject.SetActive(false);
-					__instance.confirmStone.Disable();
-					cancelButton.Disable();
-					yield return new WaitForSeconds(0.1f);
-					if (cancelButton.SelectionConfirmed || InputButtons.GetButton(Button.Cancel))
-					{
-						finishedBuffing = true;
-					}
-					else if (__instance.confirmStone.SelectionConfirmed)
-					{
-						if (!RunState.Run.survivorsDead && !AlwaysSucceedFire())
-						{
-							float num = SaveFile.IsAscension ? 0.5f : 1f - (Configs.FlameDestroyCardChance / 100);
-							if (SeededRandom.Value(SaveManager.SaveFile.GetCurrentRandomSeed() + numBuffsGiven) > num)
-							{
-								// Destroy card
-								if (__instance.selectionSlot.Card.Info.HasTrait(Trait.KillsSurvivors) ||
-								    __instance.selectionSlot.Card.Info.HasAbility(Ability.Deathtouch))
-								{
-									killSurvivors = true;
-								}
+                bool exitRequested = cancelButton.SelectionConfirmed;
+                m_IsCancelButtonShowing = false;
+                cancelButton.Disable();
+                __instance.confirmStone.Disable();
+                __instance.selectionSlot.Disable();
+                Singleton<TextDisplayer>.Instance.Clear();
+                Singleton<RuleBookController>.Instance.SetShown(false);
+                if (exitRequested)
+                {
+                    break;
+                }
 
-								Plugin.Log.LogError("Destroying card");
-								__instance.selectionSlot.Card.Anim.PlayDeathAnimation();
-								RunState.Run.playerDeck.RemoveCard(__instance.selectionSlot.Card.Info);
-								yield return new WaitForSeconds(1f);
+                CardInfo cardInfo = __instance.selectionSlot.Card.Info;
+                __instance.selectionSlot.Card.SetInteractionEnabled(false);
+                float chance = Configs.FlameDestroyCardChance / 100f;
+                float roll = SeededRandom.Value(unchecked(randomSeed + attempt++));
+                bool destroyed = !RunState.Run.survivorsDead && !killSurvivors &&
+                    (chance >= 1f || (chance > 0f && roll < chance));
+                if (destroyed)
+                {
+                    __instance.confirmStone.Exit();
+                    __instance.confirmStone.SelectionConfirmed = false;
+                    if (cardInfo.HasTrait(Trait.KillsSurvivors) || cardInfo.HasAbility(Ability.Deathtouch))
+                    {
+                        killSurvivors = true;
+                        RunState.Run.survivorsDead = true;
+                    }
 
-								Plugin.Log.LogError("Playing text");
-								yield return Singleton<TextDisplayer>.Instance.PlayDialogueEvent("StatBoostCardEaten",
-									TextDisplayer.MessageAdvanceMode.Input, TextDisplayer.EventIntersectMode.Wait,
-									new string[1] { __instance.selectionSlot.Card.Info.DisplayedNameLocalized });
-								yield return new WaitForSeconds(0.1f);
+                    __instance.selectionSlot.Card.Anim.PlayDeathAnimation();
+                    RunState.Run.playerDeck.RemoveCard(cardInfo);
+                    yield return new WaitForSeconds(1f);
+                    yield return Singleton<TextDisplayer>.Instance.PlayDialogueEvent("StatBoostCardEaten",
+                        TextDisplayer.MessageAdvanceMode.Input, TextDisplayer.EventIntersectMode.Wait,
+                        new string[] { cardInfo.DisplayedNameLocalized });
+                    __instance.selectionSlot.DestroyCard();
+                    // Unity destroys the card at the end of the frame. Do not re-enable its button meanwhile.
+                    yield return null;
+                    if (killSurvivors)
+                    {
+                        __instance.figurines.ForEach(x => x.gameObject.SetActive(false));
+                    }
 
-								Plugin.Log.LogError("Destroying card");
-								__instance.selectionSlot.DestroyCard();
+                    if (RunState.Run.consumables.Count < RunState.Run.MaxConsumables)
+                    {
+                        Singleton<ViewManager>.Instance.SwitchToView(View.Consumables);
+                        yield return new WaitForSeconds(0.2f);
+                        RunState.Run.consumables.Add("PiggyBank");
+                        Singleton<ItemsManager>.Instance.UpdateItems();
+                        yield return new WaitForSeconds(0.5f);
+                        yield return Singleton<TextDisplayer>.Instance.PlayDialogueEvent(
+                            "StatBoostCardEatenBones", TextDisplayer.MessageAdvanceMode.Input);
+                    }
+                    Singleton<ViewManager>.Instance.SwitchToView(View.Default);
+                }
+                else
+                {
+                    yield return new WaitForSeconds(0.25f);
+                    AudioController.Instance.PlaySound3D("card_blessing", MixerGroup.TableObjectsSFX,
+                        __instance.selectionSlot.transform.position);
+                    __instance.selectionSlot.Card.Anim.PlayTransformAnimation();
+                    __instance.ApplyModToCard(cardInfo, attackMod);
+                    yield return new WaitForSeconds(0.15f);
+                    __instance.selectionSlot.Card.SetInfo(cardInfo);
+                    yield return new WaitForSeconds(0.75f);
+                }
+            }
 
-
-								if (RunState.Run.consumables.Count < RunState.Run.MaxConsumables)
-								{
-									Plugin.Log.LogError("Giving an item");
-									yield return new WaitForSeconds(0.4f);
-									Singleton<ViewManager>.Instance.SwitchToView(View.Consumables);
-									yield return new WaitForSeconds(0.2f);
-									RunState.Run.consumables.Add("PiggyBank");
-									Singleton<ItemsManager>.Instance.UpdateItems();
-									yield return new WaitForSeconds(0.5f);
-									yield return Singleton<TextDisplayer>.Instance.PlayDialogueEvent(
-										"StatBoostCardEatenBones", TextDisplayer.MessageAdvanceMode.Input);
-									__instance.selectionSlot.FlyOffCard();
-								}
-
-								numBuffsGiven++;
-								Plugin.Log.LogError("Checking if card is still in deck: " + __instance.GetValidCards(attackMod).Count);
-								if (__instance.GetValidCards(attackMod).Count > 1)
-									goto RechooseCard;
-							}
-						}
-					}
-
-					Plugin.Log.LogError("Checking if card is still in deck: " + __instance.GetValidCards(attackMod).Count);
-					if (__instance.GetValidCards(attackMod).Count == 1)
-					{
-						finishedBuffing = true;
-					}
-				}
-				else
-				{
-					finishedBuffing = true;
-				}
-			}
-			
-			// if (!RunState.Run.survivorsDead)
-			// {
-				yield return Singleton<TextDisplayer>.Instance.PlayDialogueEvent("StatBoostOutro", TextDisplayer.MessageAdvanceMode.Input, TextDisplayer.EventIntersectMode.Wait, new string[2]
-				{
-					__instance.GetTranslatedStatText(attackMod),
-					__instance.selectionSlot.Card.Info.DisplayedNameLocalized
-				});
-			// }
+            __instance.selectionSlot.ClearDelegates();
+            __instance.retrieveCardInteractable.gameObject.SetActive(false);
+            if (__instance.selectionSlot.Card != null)
+            {
+                yield return Singleton<TextDisplayer>.Instance.PlayDialogueEvent("StatBoostOutro",
+                    TextDisplayer.MessageAdvanceMode.Input, TextDisplayer.EventIntersectMode.Wait,
+                    new string[] { __instance.GetTranslatedStatText(attackMod),
+                        __instance.selectionSlot.Card.Info.DisplayedNameLocalized });
+            }
 			SaveManager.SaveToFile();
 			yield return new WaitForSeconds(0.1f);
 			if (__instance.selectionSlot.Card != null)
@@ -343,25 +337,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 			}
         }
 
-        private static bool AlwaysSucceedFire()
-        {
-	        if (RunState.Run.survivorsDead)
-	        {
-		        return true;
-	        }
 
-	        if (Configs.FlameDestroyCardChance <= 0)
-	        {
-		        return true;
-	        }
-
-	        if (Plugin.Instance.FirePitAlwaysAbleToUpgradeInstalled)
-	        {
-		        return true;
-	        }
-
-	        return false;
-        }
     }
     
     [HarmonyPatch(typeof(CardStatBoostSequencer), nameof(CardStatBoostSequencer.OnSlotSelected))]
@@ -374,6 +350,7 @@ namespace UnlimitedInscryption.Scripts.Patches
 			    return true;
 		    }
 			 
+            __instance.confirmStone.SelectionConfirmed = false;
 		    Transform confirmStoneButton = __instance.transform.Find("CustomCancelButton");
 		    Debug.Assert(confirmStoneButton, "Confirm stone button not created yet!");
 		    ConfirmStoneButton cancelButton = confirmStoneButton.GetComponentInChildren<ConfirmStoneButton>(true);
@@ -392,6 +369,8 @@ namespace UnlimitedInscryption.Scripts.Patches
 			    return true;
 		    }
     
+            // Selecting a new card must always require a fresh press of the buff button.
+            __instance.confirmStone.SelectionConfirmed = false;
 		    Transform confirmStoneButton = __instance.transform.Find("CustomCancelButton");
 		    Debug.Assert(confirmStoneButton, "Confirm stone button not created yet!");
 		    ConfirmStoneButton cancelButton = confirmStoneButton.GetComponentInChildren<ConfirmStoneButton>(true);

@@ -46,10 +46,14 @@ namespace UnlimitedInscryption
             Plugin.Instance.Config.Bind("Flame", "Enabled", true,
                 new ConfigDescription("Enables the mods new behaviour to change how the Flame works when True")).Value;
 
+        public static bool CopyCardOverrideEnabled =
+            Plugin.Instance.Config.Bind("Goobert", "Enabled", true,
+                new ConfigDescription("Offers Repeat and Exit after each painting so Goobert can copy more cards during the same visit.")).Value;
+
         public static float FlameDestroyCardChance =
             Mathf.Clamp(Plugin.Instance.Config.Bind("Flame", "Destroy Chance", 22.5f,
                 new ConfigDescription(
-                    "Flame never destroys your cards when True. Default = 22.5%. 0 = never destroys. 100 = Always destroys")).Value, 0f, 100f);
+                    "Chance to destroy the selected card on every buff attempt, including the first. Default = 22.5%. 0 = never destroys. 100 = always destroys")).Value, 0f, 100f);
 
         public static void Init()
         {
