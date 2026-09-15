@@ -10,7 +10,7 @@ namespace UnlimitedInscryption
     {
 	    public const string PluginGuid = "jamesgames.inscryption.unlimitedinscryption";
 	    public const string PluginName = "Unlimited Inscryption";
-	    public const string PluginVersion = "1.0.0";
+	    public const string PluginVersion = "1.0.1";
 
         public static string PluginDirectory;
         public static ManualLogSource Log;
